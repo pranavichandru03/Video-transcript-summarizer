@@ -1,1 +1,69 @@
+# Install necessary dependencies
+!pip install -q transformers youtube-transcript-api googletrans==4.0.0-rc1
 
+from transformers import pipeline
+from youtube_transcript_api import YouTubeTranscriptApi
+from IPython.display import YouTubeVideo
+from googletrans import Translator
+
+def print_text_line_by_line(text, line_length=80):
+    """
+    Prints text line by line for better readability.
+    Splits text into chunks of the specified line length.
+    """
+    for i in range(0, len(text), line_length):
+        print(text[i:i + line_length])
+
+# Video URL and ID extraction
+youtube_video = "https://www.youtube.com/watch?v=GiHMz47vUqE"
+video_id = youtube_video.split("=")[1]
+
+# Display video
+YouTubeVideo(video_id)
+
+try:
+    # Fetch transcript
+    transcript = YouTubeTranscriptApi.get_transcript(video_id)
+    result = " ".join([entry['text'] for entry in transcript])
+    print("Transcript Length:", len(result), "characters")
+
+    print("\nTRANSCRIPT:")
+    print_text_line_by_line(result)
+except Exception as e:
+    print(f"Error fetching transcript: {e}")
+    result = ""
+
+if result:
+    # Initialize summarization pipeline
+    summarizer = pipeline('summarization')
+
+    # Summarize in chunks of 1000 characters
+    chunk_size = 1000
+    summarized_text = []
+    for i in range(0, len(result), chunk_size):
+        chunk = result[i:i + chunk_size]
+        try:
+            out = summarizer(chunk, max_length=150, min_length=30, do_sample=False)
+            summarized_text.append(out[0]['summary_text'])
+        except Exception as e:
+            print(f"Error during summarization for chunk {i}: {e}")
+
+    # Combine all summarized chunks
+    final_summary = " ".join(summarized_text)
+
+    print("\nSUMMARY:")
+    print_text_line_by_line(final_summary)
+
+    # Add translation feature
+    translate_option = input("\nDo you want to translate the summary? (yes/no): ").strip().lower()
+    if translate_option == "yes":
+        target_language = input("Enter target language code (e.g., 'fr' for French, 'es' for Spanish,'kn' for kannada,'hi' for hindi,'te' for telegu): ").strip()
+        try:
+            translator = Translator()
+            translated_text = translator.translate(final_summary, dest=target_language).text
+            print("\nTRANSLATED SUMMARY:")
+            print_text_line_by_line(translated_text)
+        except Exception as e:
+            print(f"Translation failed: {e}")
+    else:
+        print("\nTranslation skipped.")
